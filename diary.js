@@ -610,6 +610,88 @@ export function downloadCSV() {
   URL.revokeObjectURL(url);
 }
 
+// ─── JSON BACKUP / RESTORE ───────────────────────────────────────────────────
+
+/**
+ * Export all diary data as a downloadable JSON backup file.
+ * Includes both diary entries and settings so a restore is complete.
+ * Filename includes today's date for easy filing: lc-backup-2026-06-27.json
+ */
+export function downloadJSON() {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    version: 1,
+    entries: loadAllEntries(),
+    settings: loadSettings(),
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {
+    type: "application/json;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `lc-backup-${todayString()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Restore diary data from a JSON backup file.
+ * Accepts a File object (from an <input type="file"> picker).
+ *
+ * Validates that the file looks like app data before writing anything.
+ * On success, overwrites both lc_diary_entries and lc_settings.
+ *
+ * Returns a Promise that resolves to:
+ *   { ok: true,  entryCount: number }   — on success
+ *   { ok: false, error: string }        — on validation or parse failure
+ */
+export function importFromJSON(file) {
+  return new Promise((resolve) => {
+    if (!file || file.type !== "application/json") {
+      resolve({ ok: false, error: "Please select a valid .json backup file." });
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+
+        // Basic validation — must have an entries array
+        if (!data || !Array.isArray(data.entries)) {
+          resolve({
+            ok: false,
+            error: "This file doesn't look like an MC Compass backup.",
+          });
+          return;
+        }
+
+        // Write entries
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data.entries));
+
+        // Write settings if present, otherwise leave existing settings alone
+        if (data.settings && typeof data.settings === "object") {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(data.settings));
+        }
+
+        resolve({ ok: true, entryCount: data.entries.length });
+      } catch {
+        resolve({ ok: false, error: "Could not read this file. It may be corrupted." });
+      }
+    };
+
+    reader.onerror = () => {
+      resolve({ ok: false, error: "Could not read this file." });
+    };
+
+    reader.readAsText(file);
+  });
+}
+
 // ─── DATA MANAGEMENT ─────────────────────────────────────────────────────────
 
 /**

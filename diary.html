@@ -565,7 +565,7 @@
       deleteEntry,
       getTodaysEntries,
       lastNDays,
-    } from './diary.js';
+    } from 'diary.js';
 
     // ── Elder UX design decisions ────────────────────────────────────────────
     //
@@ -940,6 +940,13 @@
 
     // ── Initial render ───────────────────────────────────────────────────────
     renderEntries();
+
+    // ── Tab sync ─────────────────────────────────────────────────────────────
+    // The storage event fires in every tab *except* the one that wrote.
+    // When another tab saves an entry, re-render so this tab stays current.
+    window.addEventListener('storage', e => {
+      if (e.key === 'lc_diary_entries') renderEntries();
+    });
   </script>
 
 </body>

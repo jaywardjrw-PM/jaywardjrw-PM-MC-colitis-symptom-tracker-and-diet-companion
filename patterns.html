@@ -121,10 +121,6 @@
 
   <header class="page-header">
     <span class="page-title">Patterns</span>
-    <button class="btn btn--secondary btn--sm" id="export-btn"
-            aria-label="Export diary as CSV">
-      Export CSV
-    </button>
   </header>
 
   <main class="page" id="main-content">
@@ -160,6 +156,25 @@
     <p class="section-header">Most logged foods</p>
     <div class="card" id="top-foods-card">
       <!-- Populated by JS -->
+    </div>
+
+    <!-- Data export / backup / restore -->
+    <p class="section-header">Your data</p>
+    <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+      <button class="btn btn--secondary" id="export-csv-btn">
+        Export CSV — share with your doctor
+      </button>
+      <button class="btn btn--secondary" id="backup-btn">
+        Back up — save a full backup file
+      </button>
+      <button class="btn btn--secondary" id="restore-btn">
+        Restore — load a previous backup
+      </button>
+      <!-- Hidden file input for restore -->
+      <input type="file" id="restore-input" accept=".json,application/json"
+             style="display:none;" aria-hidden="true" />
+      <p class="text-xs text-hint" id="restore-status" aria-live="polite"
+         style="text-align:center; min-height:1.2em;"></p>
     </div>
 
     <!-- Disclaimer -->
@@ -213,8 +228,10 @@
       getMostLoggedFoods,
       getHighSymptomDaysWithFoods,
       downloadCSV,
+      downloadJSON,
+      importFromJSON,
       getStorageInfo,
-    } from './diary.js';
+    } from 'diary.js';
 
     // ── State ────────────────────────────────────────────────────────────────
     let activeDays = 7;
@@ -230,14 +247,58 @@
       });
     });
 
-    // ── Export ───────────────────────────────────────────────────────────────
-    document.getElementById('export-btn').addEventListener('click', () => {
+    // ── Export CSV ───────────────────────────────────────────────────────────
+    document.getElementById('export-csv-btn').addEventListener('click', () => {
       const info = getStorageInfo();
       if (info.entryCount === 0) {
         alert('No diary entries to export yet.');
         return;
       }
       downloadCSV();
+    });
+
+    // ── Back up (JSON) ───────────────────────────────────────────────────────
+    document.getElementById('backup-btn').addEventListener('click', () => {
+      const info = getStorageInfo();
+      if (info.entryCount === 0) {
+        alert('No diary entries to back up yet.');
+        return;
+      }
+      downloadJSON();
+    });
+
+    // ── Restore (JSON) ───────────────────────────────────────────────────────
+    const restoreInput  = document.getElementById('restore-input');
+    const restoreStatus = document.getElementById('restore-status');
+
+    document.getElementById('restore-btn').addEventListener('click', () => {
+      restoreStatus.textContent = '';
+      restoreInput.click();
+    });
+
+    restoreInput.addEventListener('change', async () => {
+      const file = restoreInput.files[0];
+      if (!file) return;
+
+      const confirmed = confirm(
+        'This will replace all your current diary data with the backup file.\n\nAre you sure?'
+      );
+      // Reset input so the same file can be selected again if needed
+      restoreInput.value = '';
+
+      if (!confirmed) return;
+
+      const result = await importFromJSON(file);
+
+      if (result.ok) {
+        restoreStatus.textContent =
+          `✓ Restored ${result.entryCount} entries successfully.`;
+        restoreStatus.style.color = 'var(--color-safe-text)';
+        render();
+      } else {
+        restoreStatus.textContent = `✗ ${result.error}`;
+        restoreStatus.style.color = 'var(--color-avoid)';
+      }
     });
 
     // ── Render ───────────────────────────────────────────────────────────────
