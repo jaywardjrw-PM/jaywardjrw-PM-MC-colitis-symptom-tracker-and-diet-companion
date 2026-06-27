@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1D9E75" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Patterns — MC Compass</title>
+  <style>
+    /* ── Patterns-specific styles ── */
+
+    /* Period toggle — 7 day vs 30 day */
+    .period-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .period-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border-strong);
+      background: var(--color-bg);
+      font-family: var(--font);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+
+    .period-btn.is-active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: #ffffff;
+    }
+
+    .period-btn:focus-visible {
+      outline: 3px solid var(--color-focus-ring);
+      outline-offset: 2px;
+    }
+
+    /* Inline bar chart — pure CSS, no library */
+    /* Each day is a vertical bar scaled to max BM count */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 80px;
+      margin: 12px 0 4px;
+    }
+
+    .bar-chart__bar {
+      flex: 1;
+      border-radius: 3px 3px 0 0;
+      min-height: 3px;
+      transition: height 0.2s ease;
+    }
+
+    .bar-chart__bar--normal   { background: var(--color-safe); }
+    .bar-chart__bar--elevated { background: var(--color-caution); }
+    .bar-chart__bar--high     { background: var(--color-avoid); }
+    .bar-chart__bar--empty    { background: var(--color-border); }
+
+    .bar-chart__labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.625rem;
+      color: var(--color-text-hint);
+    }
+
+    /* Trigger row */
+    .trigger-list { margin-top: 8px; }
+
+    .trigger-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .trigger-item:last-child { border-bottom: none; }
+
+    .trigger-item__date {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-text-hint);
+      margin-bottom: 4px;
+    }
+
+    .trigger-item__symptoms {
+      font-size: 0.8125rem;
+      color: var(--color-caution-text);
+      background: var(--color-caution-bg);
+      border-radius: var(--radius-sm);
+      padding: 3px 8px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .trigger-item__foods {
+      font-size: 0.8125rem;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Section header */
+    .section-header {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--color-text-hint);
+      margin: 20px 0 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <span class="page-title">Patterns</span>
+    <button class="btn btn--secondary btn--sm" id="export-btn"
+            aria-label="Export diary as CSV">
+      Export CSV
+    </button>
+  </header>
+
+  <main class="page" id="main-content">
+
+    <!-- Period toggle -->
+    <div class="period-toggle" role="group" aria-label="Time period">
+      <button class="period-btn is-active" data-days="7">Last 7 days</button>
+      <button class="period-btn" data-days="30">Last 30 days</button>
+    </div>
+
+    <!-- Summary stat cards — 2x2 grid -->
+    <div class="stat-grid" id="stat-grid" aria-label="Summary statistics">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- BM trend — pure CSS bar chart -->
+    <p class="section-header">Bowel movements per day</p>
+    <div class="card">
+      <div class="bar-chart" id="bm-chart" role="img"
+           aria-label="Bar chart of daily bowel movements">
+      </div>
+      <div class="bar-chart__labels" id="bm-chart-labels"></div>
+      <p class="text-xs text-hint mt-2" id="bm-chart-note"></p>
+    </div>
+
+    <!-- High symptom days + foods correlation -->
+    <p class="section-header">High symptom days</p>
+    <div class="card" id="trigger-card">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Most logged foods -->
+    <p class="section-header">Most logged foods</p>
+    <div class="card" id="top-foods-card">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Disclaimer -->
+    <p class="disclaimer">
+      MC Compass is a personal reference tool, not medical advice.<br>
+      Always consult your gastroenterologist before changing your diet or medications.
+    </p>
+
+  </main>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <a href="index.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
+        <path d="M9 21V12h6v9" />
+      </svg>
+      Home
+    </a>
+    <a href="food-guide.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a7 7 0 017 7c0 4-3 6.5-3 9H8c0-2.5-3-5-3-9a7 7 0 017-7z" />
+        <line x1="8" y1="22" x2="16" y2="22" />
+        <line x1="9" y1="18" x2="15" y2="18" />
+      </svg>
+      Food guide
+    </a>
+    <a href="diary.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <line x1="8" y1="8" x2="16" y2="8" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="12" y2="16" />
+      </svg>
+      Diary
+    </a>
+    <a href="patterns.html" class="nav-item active" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+      Patterns
+    </a>
+  </nav>
+
+  <script type="module">
+    import {
+      formatDateShort,
+      lastNDays,
+      getSymptomSummary,
+      getDailyBMTotals,
+      getMostLoggedFoods,
+      getHighSymptomDaysWithFoods,
+      downloadCSV,
+      getStorageInfo,
+    } from 'diary.js';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let activeDays = 7;
+
+    // ── Period toggle ────────────────────────────────────────────────────────
+    document.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeDays = Number(btn.dataset.days);
+        document.querySelectorAll('.period-btn').forEach(b => {
+          b.classList.toggle('is-active', b === btn);
+        });
+        render();
+      });
+    });
+
+    // ── Export ───────────────────────────────────────────────────────────────
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const info = getStorageInfo();
+      if (info.entryCount === 0) {
+        alert('No diary entries to export yet.');
+        return;
+      }
+      downloadCSV();
+    });
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    function render() {
+      renderStats();
+      renderBMChart();
+      renderTriggers();
+      renderTopFoods();
+    }
+
+    // ── Stat cards ───────────────────────────────────────────────────────────
+    function renderStats() {
+      const s    = getSymptomSummary(activeDays);
+      const grid = document.getElementById('stat-grid');
+
+      // Colour-code avg BMs: ≤1.5 good, ≤3 caution, >3 alert
+      const bmClass = s.avgBMsPerDay <= 1.5 ? 'stat-card--good'
+        : s.avgBMsPerDay <= 3 ? 'stat-card--alert' : 'stat-card--alert';
+
+      grid.innerHTML = `
+        <div class="stat-card ${bmClass}">
+          <p class="stat-card__value">${s.avgBMsPerDay.toFixed(1)}</p>
+          <p class="stat-card__label">Avg BMs / day</p>
+        </div>
+        <div class="stat-card ${s.urgencyDays > 0 ? 'stat-card--alert' : 'stat-card--good'}">
+          <p class="stat-card__value">${s.urgencyDays}</p>
+          <p class="stat-card__label">Urgency days</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-card__value">${s.daysTracked}</p>
+          <p class="stat-card__label">Days logged</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-card__value">${s.totalBMs}</p>
+          <p class="stat-card__label">Total BMs</p>
+        </div>`;
+    }
+
+    // ── BM bar chart — pure CSS, no library ──────────────────────────────────
+    //
+    // Future enhancement: swap this for a Chart.js canvas once the app
+    // has been in use for a few weeks and chart complexity is justified.
+    // The data layer (getDailyBMTotals) is already Chart.js-ready.
+    //
+    function renderBMChart() {
+      const data   = getDailyBMTotals(activeDays);
+      const chart  = document.getElementById('bm-chart');
+      const labels = document.getElementById('bm-chart-labels');
+      const note   = document.getElementById('bm-chart-note');
+
+      const counts  = data.map(d => d.bmCount ?? 0);
+      const maxVal  = Math.max(...counts, 1);
+      const tracked = data.filter(d => d.bmCount !== null).length;
+
+      chart.innerHTML = data.map(d => {
+        const val    = d.bmCount ?? 0;
+        const pct    = Math.round((val / maxVal) * 100);
+        const colour = d.bmCount === null ? 'empty'
+          : val <= 1 ? 'normal'
+          : val <= 3 ? 'elevated'
+          : 'high';
+        const label  = d.bmCount === null ? 'No data'
+          : `${formatDateShort(d.date)}: ${val} BM${val !== 1 ? 's' : ''}`;
+        return `<div class="bar-chart__bar bar-chart__bar--${colour}"
+                     style="height:${Math.max(pct, 4)}%"
+                     role="presentation"
+                     title="${label}"></div>`;
+      }).join('');
+
+      // Show first and last date as axis labels
+      if (data.length > 0) {
+        labels.innerHTML = `
+          <span>${formatDateShort(data[0].date)}</span>
+          <span>${formatDateShort(data[data.length - 1].date)}</span>`;
+      }
+
+      note.textContent = tracked > 0
+        ? `${tracked} of ${activeDays} days logged  ·  Green ≤1  ·  Amber 2–3  ·  Red 4+`
+        : 'No symptom entries yet for this period.';
+    }
+
+    // ── High symptom days ────────────────────────────────────────────────────
+    function renderTriggers() {
+      const days = getHighSymptomDaysWithFoods(activeDays);
+      const card = document.getElementById('trigger-card');
+
+      if (days.length === 0) {
+        card.innerHTML = `
+          <p class="text-sm text-hint" style="text-align:center; padding:12px 0;">
+            No high-symptom days in this period — great news.
+          </p>`;
+        return;
+      }
+
+      card.innerHTML = `
+        <p class="text-xs text-hint" style="margin-bottom:8px; line-height:1.5;">
+          Days where BMs exceeded 3, bloating hit moderate or above, or urgency
+          was present. Foods logged that day are shown for review.
+        </p>
+        <div class="trigger-list">
+          ${days.map(d => {
+            const s = d.symptoms;
+            const parts = [];
+            if (s.totalBMs > 3)   parts.push(`${s.totalBMs} BMs`);
+            if (s.hasUrgency)     parts.push('Urgency');
+            if (s.maxBloating >= 4) parts.push('High bloating');
+            if (s.hasCramping)    parts.push('Cramping');
+
+            return `
+              <div class="trigger-item">
+                <p class="trigger-item__date">${formatDateShort(d.date)}</p>
+                <span class="trigger-item__symptoms">${parts.join(' · ')}</span>
+                <p class="trigger-item__foods">
+                  ${d.foods.length > 0
+                    ? 'Foods that day: ' + escHtml(d.foods.join(', '))
+                    : 'No meals logged that day.'}
+                </p>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    // ── Top foods ────────────────────────────────────────────────────────────
+    function renderTopFoods() {
+      const foods = getMostLoggedFoods(activeDays, 8);
+      const card  = document.getElementById('top-foods-card');
+
+      if (foods.length === 0) {
+        card.innerHTML = `
+          <p class="text-sm text-hint" style="text-align:center; padding:12px 0;">
+            No meals logged in this period yet.
+          </p>`;
+        return;
+      }
+
+      const maxCount = foods[0].count;
+
+      card.innerHTML = foods.map(f => `
+        <div style="display:flex; align-items:center; gap:10px;
+                    padding:7px 0; border-bottom:1px solid var(--color-border);">
+          <span style="font-size:0.875rem; font-weight:500; flex:1;
+                       color:var(--color-text);">${escHtml(f.name)}</span>
+          <div style="width:80px; height:6px; background:var(--color-border);
+                      border-radius:3px; overflow:hidden;">
+            <div style="width:${Math.round((f.count / maxCount) * 100)}%;
+                        height:100%; background:var(--color-safe);
+                        border-radius:3px;"></div>
+          </div>
+          <span style="font-size:0.75rem; color:var(--color-text-hint);
+                       min-width:24px; text-align:right;">${f.count}×</span>
+        </div>`).join('');
+    }
+
+    // ── Utility ──────────────────────────────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ── Initial render ───────────────────────────────────────────────────────
+    render();
+  </script>
+
+</body>
+</html>

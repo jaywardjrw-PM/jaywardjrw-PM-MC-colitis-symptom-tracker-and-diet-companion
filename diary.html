@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1D9E75" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Diary — MC Compass</title>
+  <style>
+    /* ── Diary-specific styles ── */
+
+    /* Large tap-target action cards at top of list view */
+    .action-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .action-card {
+      background: var(--color-bg);
+      border: 1.5px solid var(--color-border-strong);
+      border-radius: var(--radius-lg);
+      padding: 18px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--color-text);
+      text-align: center;
+      transition: background 0.12s, border-color 0.12s;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 90px;
+    }
+
+    .action-card:active {
+      background: var(--color-surface);
+    }
+
+    .action-card:focus-visible {
+      outline: 3px solid var(--color-focus-ring);
+      outline-offset: 2px;
+    }
+
+    .action-card--meal   { border-color: var(--color-safe); }
+    .action-card--symptom { border-color: var(--color-caution); }
+
+    .action-card svg {
+      width: 28px;
+      height: 28px;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .action-card--meal svg    { stroke: var(--color-safe); }
+    .action-card--symptom svg { stroke: var(--color-caution); }
+
+    /* Full-screen form overlay */
+    .form-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--color-bg);
+      z-index: 200;
+      overflow-y: auto;
+      padding-bottom: 100px;
+    }
+
+    .form-overlay.is-open {
+      display: block;
+    }
+
+    .form-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--color-border);
+      position: sticky;
+      top: 0;
+      background: var(--color-bg);
+      z-index: 10;
+    }
+
+    .form-header__title {
+      font-size: 1.0625rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+
+    .form-close {
+      background: var(--color-surface);
+      border: none;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--color-text);
+      font-size: 1.25rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .form-close:focus-visible {
+      outline: 3px solid var(--color-focus-ring);
+    }
+
+    .form-body {
+      padding: 20px 16px;
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+
+    /* BM stepper — large tap targets for older users */
+    .bm-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    .bm-stepper__btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2px solid var(--color-border-strong);
+      background: var(--color-bg);
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: var(--color-text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+
+    .bm-stepper__btn:active  { background: var(--color-surface); }
+    .bm-stepper__btn:focus-visible {
+      outline: 3px solid var(--color-focus-ring);
+    }
+
+    .bm-stepper__value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--color-text);
+      min-width: 48px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Food tag input area */
+    .food-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .food-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--color-safe-bg);
+      color: var(--color-safe-text);
+      border-radius: var(--radius-pill);
+      padding: 5px 12px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .food-tag__remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--color-safe-text);
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0;
+      opacity: 0.7;
+    }
+
+    .food-tag__remove:focus-visible {
+      outline: 2px solid var(--color-focus-ring);
+      border-radius: 50%;
+    }
+
+    .food-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .food-input-row .form-input {
+      flex: 1;
+    }
+
+    .food-input-row .btn {
+      flex-shrink: 0;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+
+    /* Save button — sticky at bottom of form */
+    .form-save-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      background: var(--color-bg);
+      border-top: 1px solid var(--color-border);
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+
+    /* Today / load more section header */
+    .load-more-row {
+      display: flex;
+      justify-content: center;
+      padding: 12px 0 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Page header -->
+  <header class="page-header">
+    <span class="page-title">My diary</span>
+    <span id="entry-count" class="text-xs text-hint"></span>
+  </header>
+
+  <!-- ── LIST VIEW ────────────────────────────────────────────────────────── -->
+  <main class="page" id="list-view">
+
+    <!-- Two large action cards -->
+    <div class="action-cards">
+      <button class="action-card action-card--meal"
+              id="open-meal-form"
+              aria-label="Log a meal">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18 8h1a4 4 0 010 8h-1" />
+          <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" />
+          <line x1="6" y1="1" x2="6" y2="4" />
+          <line x1="10" y1="1" x2="10" y2="4" />
+          <line x1="14" y1="1" x2="14" y2="4" />
+        </svg>
+        Log a meal
+      </button>
+      <button class="action-card action-card--symptom"
+              id="open-symptom-form"
+              aria-label="Log symptoms">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+        Log symptoms
+      </button>
+    </div>
+
+    <!-- Today's entries -->
+    <div id="today-section">
+      <p class="diary-day-header" id="today-label"></p>
+      <div id="today-entries"></div>
+    </div>
+
+    <!-- Load more -->
+    <div class="load-more-row" id="load-more-row" style="display:none;">
+      <button class="btn btn--secondary btn--sm" id="load-more-btn">
+        Show older entries
+      </button>
+    </div>
+
+    <!-- Older entries — hidden until load more tapped -->
+    <div id="older-entries" style="display:none;"></div>
+
+    <p class="disclaimer">
+      MC Compass is a personal reference tool, not medical advice.<br>
+      Always consult your gastroenterologist before changing your diet or medications.
+    </p>
+
+  </main>
+
+  <!-- ── MEAL FORM ─────────────────────────────────────────────────────────── -->
+  <div class="form-overlay" id="meal-form" role="dialog"
+       aria-modal="true" aria-labelledby="meal-form-title">
+
+    <div class="form-header">
+      <span class="form-header__title" id="meal-form-title">Log a meal</span>
+      <button class="form-close" id="close-meal-form" aria-label="Close form">✕</button>
+    </div>
+
+    <div class="form-body">
+
+      <!-- Time -->
+      <div class="form-section">
+        <label class="form-label" for="meal-time">Time</label>
+        <input type="time" class="form-input" id="meal-time" />
+      </div>
+
+      <!-- Foods -->
+      <div class="form-section">
+        <label class="form-label" for="meal-food-input">
+          What did you eat?
+        </label>
+        <p class="form-hint">Type a food and tap Add. Add as many as you like.</p>
+        <div class="food-input-row">
+          <input type="text" class="form-input" id="meal-food-input"
+                 placeholder="e.g. Banana"
+                 autocomplete="off" autocorrect="off"
+                 aria-label="Food name" />
+          <button class="btn btn--primary btn--sm" id="add-food-btn"
+                  type="button">Add</button>
+        </div>
+        <div class="food-tags" id="food-tags" role="list"
+             aria-label="Foods added"></div>
+      </div>
+
+      <!-- Portion -->
+      <div class="form-section">
+        <label class="form-label">How much did you eat?</label>
+        <div class="portion-group" role="group" aria-label="Portion size">
+          <div class="portion-option">
+            <input type="radio" name="meal-portion" id="portion-s" value="S" />
+            <label for="portion-s">
+              Small
+              <span>half a plate</span>
+            </label>
+          </div>
+          <div class="portion-option">
+            <input type="radio" name="meal-portion" id="portion-m" value="M" checked />
+            <label for="portion-m">
+              Medium
+              <span>one plate</span>
+            </label>
+          </div>
+          <div class="portion-option">
+            <input type="radio" name="meal-portion" id="portion-l" value="L" />
+            <label for="portion-l">
+              Large
+              <span>more than one</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prep method -->
+      <div class="form-section">
+        <label class="form-label" for="meal-prep">
+          How was it prepared?
+          <span class="text-hint" style="font-weight:400;"> (optional)</span>
+        </label>
+        <input type="text" class="form-input" id="meal-prep"
+               placeholder="e.g. steamed, baked, plain"
+               autocomplete="off" />
+      </div>
+
+      <!-- Notes -->
+      <div class="form-section">
+        <label class="form-label" for="meal-notes">
+          Any notes?
+          <span class="text-hint" style="font-weight:400;"> (optional)</span>
+        </label>
+        <textarea class="form-textarea" id="meal-notes"
+                  placeholder="Anything else worth remembering…"
+                  rows="3"></textarea>
+      </div>
+
+    </div>
+
+    <div class="form-save-bar">
+      <button class="btn btn--primary btn--full" id="save-meal-btn">
+        Save meal
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ── SYMPTOM FORM ───────────────────────────────────────────────────────── -->
+  <div class="form-overlay" id="symptom-form" role="dialog"
+       aria-modal="true" aria-labelledby="symptom-form-title">
+
+    <div class="form-header">
+      <span class="form-header__title" id="symptom-form-title">Log symptoms</span>
+      <button class="form-close" id="close-symptom-form" aria-label="Close form">✕</button>
+    </div>
+
+    <div class="form-body">
+
+      <!-- Time -->
+      <div class="form-section">
+        <label class="form-label" for="symptom-time">Time</label>
+        <input type="time" class="form-input" id="symptom-time" />
+      </div>
+
+      <!-- BM count — large stepper, not a text box -->
+      <div class="form-section">
+        <label class="form-label" id="bm-label">
+          Bowel movements since last log
+        </label>
+        <p class="form-hint">Tap + or − to count.</p>
+        <div class="bm-stepper" role="group" aria-labelledby="bm-label">
+          <button class="bm-stepper__btn" id="bm-minus"
+                  aria-label="Decrease bowel movement count">−</button>
+          <span class="bm-stepper__value" id="bm-value"
+                aria-live="polite" aria-atomic="true">0</span>
+          <button class="bm-stepper__btn" id="bm-plus"
+                  aria-label="Increase bowel movement count">+</button>
+        </div>
+      </div>
+
+      <!-- Urgency -->
+      <div class="form-section">
+        <label class="form-label" id="urgency-label">
+          Any urgency? (rushing to the bathroom)
+        </label>
+        <div class="toggle-group" role="group" aria-labelledby="urgency-label">
+          <div class="toggle-option">
+            <input type="radio" name="urgency" id="urgency-no"
+                   value="no" checked />
+            <label for="urgency-no">No</label>
+          </div>
+          <div class="toggle-option toggle-option--no">
+            <input type="radio" name="urgency" id="urgency-yes" value="yes" />
+            <label for="urgency-yes">Yes</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bloating — 4 tap-target options, no slider -->
+      <!-- Elder UX: labels beat numbers. "Moderate" is more meaningful
+           than "3/5" for someone logging quickly. Maps to numeric values
+           internally (None=0, Mild=2, Moderate=4, Severe=5) so the
+           patterns chart still works without changing diary.js. -->
+      <div class="form-section">
+        <label class="form-label" id="bloating-label">
+          How much bloating?
+        </label>
+        <div class="toggle-group" style="grid-template-columns: repeat(4, 1fr);"
+             role="group" aria-labelledby="bloating-label">
+          <div class="toggle-option">
+            <input type="radio" name="bloating" id="bloating-none"
+                   value="0" checked />
+            <label for="bloating-none">None</label>
+          </div>
+          <div class="toggle-option">
+            <input type="radio" name="bloating" id="bloating-mild"
+                   value="2" />
+            <label for="bloating-mild">Mild</label>
+          </div>
+          <div class="toggle-option toggle-option--no">
+            <input type="radio" name="bloating" id="bloating-moderate"
+                   value="4" />
+            <label for="bloating-moderate">Moderate</label>
+          </div>
+          <div class="toggle-option toggle-option--no">
+            <input type="radio" name="bloating" id="bloating-severe"
+                   value="5" />
+            <label for="bloating-severe">Severe</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cramping — 3-option tap target, no binary yes/no -->
+      <div class="form-section">
+        <label class="form-label" id="cramping-label">
+          Any cramping or abdominal pain?
+        </label>
+        <div class="toggle-group" style="grid-template-columns: repeat(3, 1fr);"
+             role="group" aria-labelledby="cramping-label">
+          <div class="toggle-option">
+            <input type="radio" name="cramping" id="cramping-none"
+                   value="none" checked />
+            <label for="cramping-none">None</label>
+          </div>
+          <div class="toggle-option">
+            <input type="radio" name="cramping" id="cramping-mild"
+                   value="mild" />
+            <label for="cramping-mild">Mild</label>
+          </div>
+          <div class="toggle-option toggle-option--no">
+            <input type="radio" name="cramping" id="cramping-moderate"
+                   value="moderate" />
+            <label for="cramping-moderate">Moderate</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="form-section">
+        <label class="form-label" for="symptom-notes">
+          Any notes?
+          <span class="text-hint" style="font-weight:400;"> (optional)</span>
+        </label>
+        <textarea class="form-textarea" id="symptom-notes"
+                  placeholder="e.g. worse after breakfast, felt better by evening…"
+                  rows="3"></textarea>
+      </div>
+
+    </div>
+
+    <div class="form-save-bar">
+      <button class="btn btn--primary btn--full" id="save-symptom-btn">
+        Save symptoms
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <a href="index.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
+        <path d="M9 21V12h6v9" />
+      </svg>
+      Home
+    </a>
+    <a href="food-guide.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a7 7 0 017 7c0 4-3 6.5-3 9H8c0-2.5-3-5-3-9a7 7 0 017-7z" />
+        <line x1="8" y1="22" x2="16" y2="22" />
+        <line x1="9" y1="18" x2="15" y2="18" />
+      </svg>
+      Food guide
+    </a>
+    <a href="diary.html" class="nav-item active" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <line x1="8" y1="8" x2="16" y2="8" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="12" y2="16" />
+      </svg>
+      Diary
+    </a>
+    <a href="patterns.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+      Patterns
+    </a>
+  </nav>
+
+  <script type="module">
+    import {
+      todayString,
+      nowTimeString,
+      formatDateDisplay,
+      formatDateShort,
+      loadAllEntries,
+      addEntry,
+      deleteEntry,
+      getTodaysEntries,
+      lastNDays,
+    } from 'diary.js';
+
+    // ── Elder UX design decisions ────────────────────────────────────────────
+    //
+    // This form is designed for a patient in their mid-60s who is comfortable
+    // with smartphones but finds complex interfaces confusing. Every input
+    // choice below is intentional:
+    //
+    //   BM count   — stepper (+ / −) rather than a number input. No keyboard
+    //                required. Large 52px tap targets. Counts are small (0–10),
+    //                so tapping is faster than typing.
+    //
+    //   Urgency    — Yes / No toggle. Genuinely binary. Two large buttons.
+    //
+    //   Bloating   — Four labelled options (None / Mild / Moderate / Severe)
+    //                rather than a 0–5 slider. Labels are more meaningful than
+    //                numbers for a non-clinical user. Maps to numeric values
+    //                internally so chart logic in patterns.html is unchanged.
+    //
+    //   Cramping   — Three labelled options (None / Mild / Moderate) rather
+    //                than Yes / No. "Mild" vs "Moderate" is a clinically useful
+    //                distinction and avoids forcing a binary on a graduated
+    //                symptom. Internally stored as a string for diary.js.
+    //
+    //   All inputs — consistent tap-target pattern throughout. No sliders,
+    //                no dropdowns, no free-text numbers. One interaction model
+    //                for the whole form.
+    //
+    //   Time       — defaults to now. Most logs happen right after the event,
+    //                so the user rarely needs to change it.
+    //
+    //   Forms      — full-screen overlays. No spatial confusion about modals
+    //                or partial overlays. The user is always clearly in one
+    //                place or another.
+    // ── State ────────────────────────────────────────────────────────────────
+    let mealFoods  = [];   // array of food name strings for current meal form
+    let bmCount    = 0;
+    let olderShown = false;
+
+    // ── DOM refs ─────────────────────────────────────────────────────────────
+    const listView         = document.getElementById('list-view');
+    const mealFormEl       = document.getElementById('meal-form');
+    const symptomFormEl    = document.getElementById('symptom-form');
+    const todayEntriesEl   = document.getElementById('today-entries');
+    const olderEntriesEl   = document.getElementById('older-entries');
+    const loadMoreRow      = document.getElementById('load-more-row');
+    const entryCountEl     = document.getElementById('entry-count');
+    const foodTagsEl       = document.getElementById('food-tags');
+    const foodInput        = document.getElementById('meal-food-input');
+    const bmValueEl        = document.getElementById('bm-value');
+    const bloatingSlider   = null;   // replaced by radio buttons — kept for reference
+    const bloatingDisplay  = null;   // replaced by radio buttons — kept for reference
+
+    // ── Today label ──────────────────────────────────────────────────────────
+    document.getElementById('today-label').textContent =
+      'Today — ' + formatDateDisplay(todayString());
+
+    // ── URL param — auto-open form if ?action= present ───────────────────────
+    // Used by the FAB on the home screen and the manifest shortcuts.
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (action === 'add-meal')    openForm('meal');
+    if (action === 'add-symptom') openForm('symptom');
+
+    // ── Form open / close ────────────────────────────────────────────────────
+    function openForm(type) {
+      const form = type === 'meal' ? mealFormEl : symptomFormEl;
+      // Set time to now as a helpful default
+      const timeId = type === 'meal' ? 'meal-time' : 'symptom-time';
+      document.getElementById(timeId).value = nowTimeString();
+
+      form.classList.add('is-open');
+      // Move focus to close button for keyboard/screen reader users
+      form.querySelector('.form-close').focus();
+      // Prevent background scroll
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeForm(type) {
+      const form = type === 'meal' ? mealFormEl : symptomFormEl;
+      form.classList.remove('is-open');
+      document.body.style.overflow = '';
+      resetForm(type);
+      // Return focus to the button that opened the form
+      const btn = type === 'meal'
+        ? document.getElementById('open-meal-form')
+        : document.getElementById('open-symptom-form');
+      btn.focus();
+    }
+
+    function resetForm(type) {
+      if (type === 'meal') {
+        mealFoods = [];
+        renderFoodTags();
+        foodInput.value = '';
+        document.getElementById('meal-prep').value  = '';
+        document.getElementById('meal-notes').value = '';
+        document.querySelector('input[name="meal-portion"][value="M"]').checked = true;
+      } else {
+        bmCount = 0;
+        bmValueEl.textContent = '0';
+        bmValueEl.setAttribute('aria-valuenow', '0');
+        document.getElementById('urgency-no').checked    = true;
+        document.getElementById('cramping-none').checked = true;
+        document.getElementById('bloating-none').checked = true;
+        document.getElementById('symptom-notes').value   = '';
+      }
+    }
+
+    document.getElementById('open-meal-form')
+      .addEventListener('click', () => openForm('meal'));
+    document.getElementById('open-symptom-form')
+      .addEventListener('click', () => openForm('symptom'));
+    document.getElementById('close-meal-form')
+      .addEventListener('click', () => closeForm('meal'));
+    document.getElementById('close-symptom-form')
+      .addEventListener('click', () => closeForm('symptom'));
+
+    // Close on Escape key
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (mealFormEl.classList.contains('is-open'))    closeForm('meal');
+      if (symptomFormEl.classList.contains('is-open')) closeForm('symptom');
+    });
+
+    // ── Food tags (meal form) ────────────────────────────────────────────────
+    function renderFoodTags() {
+      foodTagsEl.innerHTML = mealFoods.map((food, i) => `
+        <span class="food-tag" role="listitem">
+          ${escHtml(food)}
+          <button class="food-tag__remove" data-index="${i}"
+                  aria-label="Remove ${escHtml(food)}">✕</button>
+        </span>`).join('');
+
+      foodTagsEl.querySelectorAll('.food-tag__remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          mealFoods.splice(Number(btn.dataset.index), 1);
+          renderFoodTags();
+        });
+      });
+    }
+
+    function addFood() {
+      const val = foodInput.value.trim();
+      if (!val) return;
+      mealFoods.push(val);
+      foodInput.value = '';
+      renderFoodTags();
+      foodInput.focus();
+    }
+
+    document.getElementById('add-food-btn')
+      .addEventListener('click', addFood);
+    // Also add on Enter key in the food input
+    foodInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addFood(); }
+    });
+
+    // ── BM stepper ───────────────────────────────────────────────────────────
+    document.getElementById('bm-plus').addEventListener('click', () => {
+      if (bmCount >= 20) return;
+      bmCount++;
+      bmValueEl.textContent = bmCount;
+      bmValueEl.setAttribute('aria-valuenow', bmCount);
+      bmValueEl.setAttribute('aria-valuetext', `${bmCount} bowel movements`);
+    });
+
+    document.getElementById('bm-minus').addEventListener('click', () => {
+      if (bmCount <= 0) return;
+      bmCount--;
+      bmValueEl.textContent = bmCount;
+      bmValueEl.setAttribute('aria-valuenow', bmCount);
+      bmValueEl.setAttribute('aria-valuetext', `${bmCount} bowel movements`);
+    });
+
+    // Bloating uses radio buttons — no slider listener needed
+
+    // ── Save meal ────────────────────────────────────────────────────────────
+    document.getElementById('save-meal-btn').addEventListener('click', () => {
+      if (mealFoods.length === 0) {
+        foodInput.focus();
+        foodInput.placeholder = 'Please add at least one food';
+        return;
+      }
+      const portion = document.querySelector(
+        'input[name="meal-portion"]:checked'
+      )?.value || 'M';
+
+      addEntry({
+        type:       'meal',
+        date:       todayString(),
+        time:       document.getElementById('meal-time').value || nowTimeString(),
+        foods:      [...mealFoods],
+        portion,
+        prepMethod: document.getElementById('meal-prep').value.trim(),
+        notes:      document.getElementById('meal-notes').value.trim(),
+      });
+
+      closeForm('meal');
+      renderEntries();
+    });
+
+    // ── Save symptoms ────────────────────────────────────────────────────────
+    document.getElementById('save-symptom-btn').addEventListener('click', () => {
+      const bloatingVal = Number(
+        document.querySelector('input[name="bloating"]:checked')?.value ?? 0
+      );
+      const crampingVal =
+        document.querySelector('input[name="cramping"]:checked')?.value || 'none';
+
+      addEntry({
+        type:         'symptom',
+        date:         todayString(),
+        time:         document.getElementById('symptom-time').value || nowTimeString(),
+        bmCount,
+        urgency:      document.getElementById('urgency-yes').checked,
+        bloating:     bloatingVal,
+        cramping:     crampingVal !== 'none',   // boolean for diary.js compatibility
+        crampingLevel: crampingVal,             // full string for display
+        symptomNotes: document.getElementById('symptom-notes').value.trim(),
+      });
+
+      closeForm('symptom');
+      renderEntries();
+    });
+
+    // ── Load more ────────────────────────────────────────────────────────────
+    document.getElementById('load-more-btn').addEventListener('click', () => {
+      olderShown = true;
+      loadMoreRow.style.display = 'none';
+      olderEntriesEl.style.display = '';
+    });
+
+    // ── Render entries ───────────────────────────────────────────────────────
+    function renderEntries() {
+      const all     = loadAllEntries(); // newest first
+      const today   = todayString();
+      const todayEntries = all.filter(e => e.date === today)
+        .sort((a, b) => a.time.localeCompare(b.time));
+
+      // Count
+      entryCountEl.textContent = all.length > 0
+        ? `${all.length} total` : '';
+
+      // Today
+      if (todayEntries.length === 0) {
+        todayEntriesEl.innerHTML = `
+          <div class="empty-state" style="padding:32px 16px;">
+            <p class="empty-state__title">Nothing logged today yet</p>
+            <p class="empty-state__body">
+              Tap "Log a meal" or "Log symptoms" above to get started.
+            </p>
+          </div>`;
+      } else {
+        todayEntriesEl.innerHTML = todayEntries.map(buildEntryCard).join('');
+        attachDeleteListeners(todayEntriesEl);
+      }
+
+      // Older — last 30 days excluding today, grouped by date
+      const older = all.filter(e => e.date !== today);
+
+      if (older.length > 0) {
+        loadMoreRow.style.display = olderShown ? 'none' : '';
+
+        // Group by date
+        const byDate = {};
+        older.forEach(e => {
+          if (!byDate[e.date]) byDate[e.date] = [];
+          byDate[e.date].push(e);
+        });
+
+        const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+        olderEntriesEl.innerHTML = dates.map(date => {
+          const entries = byDate[date]
+            .sort((a, b) => a.time.localeCompare(b.time));
+          return `
+            <p class="diary-day-header">${formatDateDisplay(date)}</p>
+            ${entries.map(buildEntryCard).join('')}`;
+        }).join('');
+
+        if (olderShown) attachDeleteListeners(olderEntriesEl);
+      } else {
+        loadMoreRow.style.display = 'none';
+      }
+    }
+
+    // ── Build a single entry card ─────────────────────────────────────────────
+    function buildEntryCard(entry) {
+      const isMeal   = entry.type === 'meal';
+      const label    = isMeal ? 'Meal' : 'Symptoms';
+      const labelCls = isMeal
+        ? 'entry-card__label--meal'
+        : 'entry-card__label--symptom';
+
+      let mainText = '';
+      let metaText = '';
+      let chips    = '';
+
+      if (isMeal) {
+        const foods = Array.isArray(entry.foods) ? entry.foods : [];
+        mainText = foods.length > 0 ? foods.join(', ') : 'Meal logged';
+        const parts = [];
+        if (entry.portion)    parts.push(`Portion: ${entry.portion}`);
+        if (entry.prepMethod) parts.push(entry.prepMethod);
+        metaText = parts.join(' · ');
+      } else {
+        const bms = entry.bmCount ?? 0;
+        mainText  = `${bms} bowel movement${bms !== 1 ? 's' : ''}`;
+
+        const chipArr = [];
+        if (entry.urgency) chipArr.push(
+          '<span class="symptom-chip symptom-chip--alert">Urgency</span>');
+        if (typeof entry.bloating === 'number' && entry.bloating > 0)
+          chipArr.push(
+            `<span class="symptom-chip ${entry.bloating >= 4 ? 'symptom-chip--alert' : ''}">
+              Bloating ${entry.bloating}/5
+            </span>`);
+        if (entry.cramping) {
+          const level = entry.crampingLevel && entry.crampingLevel !== 'none'
+            ? ` (${entry.crampingLevel})`
+            : '';
+          chipArr.push(
+            `<span class="symptom-chip">Cramping${level}</span>`);
+        }
+        if (chipArr.length) chips =
+          `<div class="symptom-chips">${chipArr.join('')}</div>`;
+
+        metaText = entry.symptomNotes || '';
+      }
+
+      return `
+        <div class="entry-card" data-id="${entry.id}">
+          <span class="entry-card__time">${entry.time}</span>
+          <div class="entry-card__content">
+            <p class="entry-card__label ${labelCls}">${label}</p>
+            <p class="entry-card__foods">${escHtml(mainText)}</p>
+            ${chips}
+            ${metaText
+              ? `<p class="entry-card__meta">${escHtml(metaText)}</p>`
+              : ''}
+          </div>
+          <button class="entry-card__delete" data-id="${entry.id}"
+                  aria-label="Delete this entry">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+            </svg>
+          </button>
+        </div>`;
+    }
+
+    // ── Delete entry ─────────────────────────────────────────────────────────
+    function attachDeleteListeners(container) {
+      container.querySelectorAll('.entry-card__delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!confirm('Delete this entry?')) return;
+          deleteEntry(btn.dataset.id);
+          renderEntries();
+        });
+      });
+    }
+
+    // ── Utility ──────────────────────────────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ── Initial render ───────────────────────────────────────────────────────
+    renderEntries();
+  </script>
+
+</body>
+</html>

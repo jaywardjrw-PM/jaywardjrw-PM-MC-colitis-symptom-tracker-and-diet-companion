@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1D9E75" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Food guide — MC Compass</title>
+</head>
+<body>
+
+  <!-- Page header -->
+  <header class="page-header">
+    <span class="page-title">Food guide</span>
+    <span id="result-count" class="text-xs text-hint" aria-live="polite"></span>
+  </header>
+
+  <main class="page" id="main-content">
+
+    <!-- Search -->
+    <div class="search-bar" role="search">
+      <svg class="search-bar__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <line x1="16.5" y1="16.5" x2="22" y2="22" />
+      </svg>
+      <input
+        type="search"
+        class="search-bar__input"
+        id="search-input"
+        placeholder="Search foods…"
+        aria-label="Search foods"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <!-- Tier filter tabs -->
+    <div class="filter-tabs" role="tablist" aria-label="Filter by food tier">
+      <button class="filter-tab is-active" role="tab" aria-selected="true"
+              data-tier="safe" id="tab-safe">
+        Safe now
+      </button>
+      <button class="filter-tab" role="tab" aria-selected="false"
+              data-tier="caution" id="tab-caution">
+        Test carefully
+      </button>
+      <button class="filter-tab" role="tab" aria-selected="false"
+              data-tier="avoid" id="tab-avoid">
+        Avoid
+      </button>
+      <button class="filter-tab" role="tab" aria-selected="false"
+              data-tier="all" id="tab-all">
+        All foods
+      </button>
+    </div>
+
+    <!-- Tier description — updates with active tab -->
+    <p class="text-xs text-hint mb-4" id="tier-desc" style="margin-bottom:16px; line-height:1.5;"></p>
+
+    <!-- Category filter — secondary row, shown when not searching -->
+    <div class="filter-tabs" id="category-filters" role="group"
+         aria-label="Filter by category" style="margin-top:-8px;">
+      <button class="filter-tab is-active" data-cat="all">All</button>
+      <button class="filter-tab" data-cat="protein">Protein</button>
+      <button class="filter-tab" data-cat="starch">Starches</button>
+      <button class="filter-tab" data-cat="vegetable">Vegetables</button>
+      <button class="filter-tab" data-cat="fruit">Fruits</button>
+      <button class="filter-tab" data-cat="drink">Drinks</button>
+      <button class="filter-tab" data-cat="fat">Fats</button>
+      <button class="filter-tab" data-cat="seasoning">Seasonings</button>
+      <button class="filter-tab" data-cat="snack">Snacks</button>
+    </div>
+
+    <!-- Food list -->
+    <div id="food-list" role="list" style="margin-top:16px;">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Empty search state -->
+    <div id="empty-search" class="empty-state" style="display:none;">
+      <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <line x1="16.5" y1="16.5" x2="22" y2="22" />
+      </svg>
+      <p class="empty-state__title">No foods found</p>
+      <p class="empty-state__body">
+        Try a different search term, or check all tiers.
+      </p>
+      <button class="btn btn--secondary btn--sm" id="clear-search">
+        Clear search
+      </button>
+    </div>
+
+    <!-- Medical disclaimer -->
+    <p class="disclaimer">
+      MC Compass is a personal reference tool, not medical advice.<br>
+      Always consult your gastroenterologist before changing your diet or medications.
+    </p>
+
+  </main>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <a href="index.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
+        <path d="M9 21V12h6v9" />
+      </svg>
+      Home
+    </a>
+    <a href="food-guide.html" class="nav-item active" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a7 7 0 017 7c0 4-3 6.5-3 9H8c0-2.5-3-5-3-9a7 7 0 017-7z" />
+        <line x1="8" y1="22" x2="16" y2="22" />
+        <line x1="9" y1="18" x2="15" y2="18" />
+      </svg>
+      Food guide
+    </a>
+    <a href="diary.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <line x1="8" y1="8" x2="16" y2="8" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="12" y2="16" />
+      </svg>
+      Diary
+    </a>
+    <a href="patterns.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+      Patterns
+    </a>
+  </nav>
+
+  <script type="module">
+    import { FOODS, TIER_LABELS, TIER_DESCRIPTIONS } from 'data.js';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let activeTier = 'safe';
+    let activeCat  = 'all';
+    let searchQuery = '';
+
+    // ── DOM refs ─────────────────────────────────────────────────────────────
+    const foodList      = document.getElementById('food-list');
+    const emptySearch   = document.getElementById('empty-search');
+    const resultCount   = document.getElementById('result-count');
+    const tierDesc      = document.getElementById('tier-desc');
+    const searchInput   = document.getElementById('search-input');
+    const tierTabs      = document.querySelectorAll('[data-tier]');
+    const catFilters    = document.querySelectorAll('[data-cat]');
+    const categoryRow   = document.getElementById('category-filters');
+
+    // ── Tier descriptions (from data.js) ─────────────────────────────────────
+    tierDesc.textContent = TIER_DESCRIPTIONS['safe'];
+
+    // ── Filter logic ─────────────────────────────────────────────────────────
+    function getFilteredFoods() {
+      const q = searchQuery.toLowerCase().trim();
+      return FOODS.filter(food => {
+        const tierMatch = activeTier === 'all' || food.tier === activeTier;
+        const catMatch  = activeCat  === 'all' || food.category === activeCat;
+        const searchMatch = !q ||
+          food.name.toLowerCase().includes(q) ||
+          (food.prep   && food.prep.toLowerCase().includes(q)) ||
+          (food.reason && food.reason.toLowerCase().includes(q));
+        return tierMatch && catMatch && searchMatch;
+      });
+    }
+
+    // ── Build a single food card ──────────────────────────────────────────────
+    //
+    // Default state: shows name + tier badge only.
+    // Tap "Show details" to reveal prep note and reason.
+    // Prep note has its own visual treatment (subtle bg) because it is the
+    // most clinically important field — getting prep wrong causes symptoms.
+    //
+    function buildCard(food) {
+      const tierClass = `food-card--${food.tier}`;
+      const badgeClass = `tier-badge--${food.tier}`;
+      const badgeLabel = TIER_LABELS[food.tier];
+
+      // Prep block — only for safe and caution foods
+      const prepBlock = food.prep ? `
+        <div class="food-card__detail">
+          <p class="food-card__prep-label">How to prepare</p>
+          <p class="food-card__prep-text">${escHtml(food.prep)}</p>
+          <p class="food-card__reason">${escHtml(food.reason)}</p>
+          ${food.cautionNote ? `
+            <div class="food-card__caution-note" role="note">
+              <span>⚠</span>
+              <span>${escHtml(food.cautionNote)}</span>
+            </div>` : ''}
+          ${food.avoidUntil ? `
+            <p class="text-xs text-hint mt-2">${escHtml(food.avoidUntil)}</p>
+          ` : ''}
+        </div>
+        <button class="food-card__expand-btn" aria-expanded="false"
+                aria-controls="detail-${food.id}">
+          Show details
+        </button>` : `
+        <div class="food-card__detail" id="detail-${food.id}">
+          <p class="food-card__reason">${escHtml(food.reason)}</p>
+        </div>
+        <button class="food-card__expand-btn" aria-expanded="false"
+                aria-controls="detail-${food.id}">
+          Show details
+        </button>`;
+
+      return `
+        <div class="food-card ${tierClass}" role="listitem" id="card-${food.id}">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
+            <p class="food-card__name">${escHtml(food.name)}</p>
+            <span class="tier-badge ${badgeClass}" aria-label="Tier: ${badgeLabel}">
+              ${badgeLabel}
+            </span>
+          </div>
+          ${prepBlock}
+        </div>`;
+    }
+
+    // ── Render the food list ─────────────────────────────────────────────────
+    function render() {
+      const foods = getFilteredFoods();
+
+      // Show/hide category row — hide when searching (tier is irrelevant)
+      categoryRow.style.display = searchQuery ? 'none' : '';
+
+      // Update tier description
+      if (!searchQuery && activeTier !== 'all') {
+        tierDesc.textContent = TIER_DESCRIPTIONS[activeTier] || '';
+        tierDesc.style.display = '';
+      } else {
+        tierDesc.style.display = 'none';
+      }
+
+      if (foods.length === 0) {
+        foodList.innerHTML    = '';
+        emptySearch.style.display = '';
+        resultCount.textContent   = 'No results';
+        return;
+      }
+
+      emptySearch.style.display = 'none';
+      resultCount.textContent   = `${foods.length} food${foods.length !== 1 ? 's' : ''}`;
+      foodList.innerHTML = foods.map(buildCard).join('');
+
+      // Attach expand/collapse listeners
+      foodList.querySelectorAll('.food-card__expand-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card     = btn.closest('.food-card');
+          const detail   = card.querySelector('.food-card__detail');
+          const expanded = card.classList.toggle('is-expanded');
+          btn.setAttribute('aria-expanded', expanded);
+          btn.textContent = expanded ? 'Hide details' : 'Show details';
+          // Scroll detail into view on small screens
+          if (expanded) {
+            detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        });
+      });
+    }
+
+    // ── Tier tab switching ───────────────────────────────────────────────────
+    tierTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeTier = tab.dataset.tier;
+        activeCat  = 'all'; // reset category on tier change
+
+        tierTabs.forEach(t => {
+          t.classList.remove('is-active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        tab.classList.add('is-active');
+        tab.setAttribute('aria-selected', 'true');
+
+        // Reset category tabs
+        catFilters.forEach(c => c.classList.remove('is-active'));
+        catFilters[0].classList.add('is-active');
+
+        render();
+      });
+    });
+
+    // ── Category filter switching ────────────────────────────────────────────
+    catFilters.forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeCat = btn.dataset.cat;
+        catFilters.forEach(c => c.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        render();
+      });
+    });
+
+    // ── Search ───────────────────────────────────────────────────────────────
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value;
+      // When searching, show all tiers so results aren't hidden
+      if (searchQuery) {
+        activeTier = 'all';
+        tierTabs.forEach(t => {
+          t.classList.remove('is-active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        document.getElementById('tab-all').classList.add('is-active');
+        document.getElementById('tab-all').setAttribute('aria-selected', 'true');
+      }
+      render();
+    });
+
+    document.getElementById('clear-search').addEventListener('click', () => {
+      searchInput.value = '';
+      searchQuery = '';
+      activeTier  = 'safe';
+      tierTabs.forEach(t => {
+        t.classList.remove('is-active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      document.getElementById('tab-safe').classList.add('is-active');
+      document.getElementById('tab-safe').setAttribute('aria-selected', 'true');
+      render();
+      searchInput.focus();
+    });
+
+    // ── Utility ──────────────────────────────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ── Initial render ───────────────────────────────────────────────────────
+    render();
+  </script>
+
+</body>
+</html>

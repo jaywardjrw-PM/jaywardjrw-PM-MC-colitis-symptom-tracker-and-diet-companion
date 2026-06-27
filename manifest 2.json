@@ -1,0 +1,52 @@
+{
+  "name": "MC Compass",
+  "short_name": "MC Compass",
+  "description": "Personal dietary reference and symptom diary for lymphocytic colitis recovery.",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1D9E75",
+  "lang": "en-US",
+  "categories": ["health", "medical", "lifestyle"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "_shortcuts_note": "Shortcuts appear when the user long-presses the app icon on their home screen (Android natively, iOS 13+). They act like deep links — tapping one opens the app directly to that action rather than the home screen. The ?action= URL parameters are read by diary.html on load to auto-open the correct form. A small UX detail that signals PWA expertise in a portfolio context.",
+  "shortcuts": [
+    {
+      "name": "Log a meal",
+      "short_name": "Log meal",
+      "description": "Add a new meal entry to your diary",
+      "url": "/diary.html?action=add-meal",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Log symptoms",
+      "short_name": "Log symptoms",
+      "description": "Record your current symptoms",
+      "url": "/diary.html?action=add-symptom",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Food guide",
+      "short_name": "Food guide",
+      "description": "Check if a food is safe",
+      "url": "/food-guide.html",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

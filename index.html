@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="MC Compass — personal dietary reference and symptom diary for lymphocytic colitis recovery." />
+  <meta name="theme-color" content="#1D9E75" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="MC Compass" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>MC Compass</title>
+</head>
+<body>
+
+  <!-- Page header -->
+  <header class="page-header">
+    <span class="page-title">MC Compass</span>
+    <span id="today-date" class="text-xs text-hint"></span>
+  </header>
+
+  <main class="page" id="main-content">
+
+    <!-- Recovery phase banner -->
+    <div class="phase-banner" id="phase-banner" role="status" aria-live="polite">
+      <p class="phase-banner__week" id="phase-week">Loading…</p>
+      <p class="phase-banner__title" id="phase-title"></p>
+      <p class="phase-banner__desc" id="phase-desc"></p>
+    </div>
+
+    <!-- Today's summary — 2-up metric cards -->
+    <div class="metric-grid" aria-label="Today's summary">
+      <div class="metric-card">
+        <p class="metric-card__label">Meals today</p>
+        <p class="metric-card__value" id="meal-count">—</p>
+        <p class="metric-card__sub">logged entries</p>
+      </div>
+      <div class="metric-card">
+        <p class="metric-card__label">BMs today</p>
+        <p class="metric-card__value" id="bm-count">—</p>
+        <p class="metric-card__sub" id="bm-sub">from symptom logs</p>
+      </div>
+    </div>
+
+    <!-- Daily tip -->
+    <div class="tip-card" id="tip-card" aria-label="Daily reminder">
+      <p class="tip-card__label">Today's reminder</p>
+      <p class="tip-card__text" id="tip-text"></p>
+    </div>
+
+    <!-- Recent entries — last 3 -->
+    <section aria-labelledby="recent-heading">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <h2 id="recent-heading" class="text-sm" style="font-weight:600;">Recent entries</h2>
+        <a href="diary.html" class="btn btn--ghost btn--sm">View all</a>
+      </div>
+      <div id="recent-entries">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- Medical disclaimer — required on every screen -->
+    <p class="disclaimer">
+      MC Compass is a personal reference tool, not medical advice.<br>
+      Always consult your gastroenterologist before changing your diet or medications.
+    </p>
+
+  </main>
+
+  <!-- Floating action button — quick diary entry -->
+  <button class="fab" id="fab" aria-label="Add diary entry">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  </button>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <a href="index.html" class="nav-item active" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
+        <path d="M9 21V12h6v9" />
+      </svg>
+      Home
+    </a>
+    <a href="food-guide.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a7 7 0 017 7c0 4-3 6.5-3 9H8c0-2.5-3-5-3-9a7 7 0 017-7z" />
+        <line x1="8" y1="22" x2="16" y2="22" />
+        <line x1="9" y1="18" x2="15" y2="18" />
+      </svg>
+      Food guide
+    </a>
+    <a href="diary.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <line x1="8" y1="8" x2="16" y2="8" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="12" y2="16" />
+      </svg>
+      Diary
+    </a>
+    <a href="patterns.html" class="nav-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+      Patterns
+    </a>
+  </nav>
+
+  <script type="module">
+    import {
+      todayString,
+      formatDateDisplay,
+      formatDateShort,
+      loadSettings,
+      saveSettings,
+      currentRecoveryWeek,
+      loadAllEntries,
+      getTodaysEntries,
+      getSymptomSummary,
+      getDailyBMTotals,
+    } from 'diary.js';
+
+    // ── On first visit, record today as recovery start date ──────────────────
+    const settings = loadSettings();
+    if (!settings.recoveryStartDate) {
+      saveSettings({ recoveryStartDate: todayString() });
+    }
+
+    // ── Today's date display ─────────────────────────────────────────────────
+    document.getElementById('today-date').textContent =
+      formatDateDisplay(todayString());
+
+    // ── Recovery phase banner ────────────────────────────────────────────────
+    //
+    // Three phases, determined by both time and symptom data:
+    //
+    //   Phase 1 — Mucosal repair (weeks 1–6)
+    //     Strict safe foods only. No caution foods yet.
+    //
+    //   Phase 2 — Careful reintroduction (week 6+)
+    //     Caution foods can be trialed one at a time, tracked in the diary.
+    //
+    //   Phase 3 — Maintenance (week 6+ AND symptom stability achieved)
+    //     Symptom stability = 7-day rolling average ≤ 1.5 BMs/day
+    //     AND no urgency days in the last 7 days.
+    //     This reflects clinical normalisation, not just calendar time.
+    //
+    function getPhase() {
+      const week = currentRecoveryWeek() || 1;
+
+      if (week <= 6) {
+        return {
+          id: 'repair',
+          week: `Week ${week} of recovery`,
+          title: 'Mucosal repair phase',
+          desc: 'Stick to safe foods only. No caution foods yet. Focus on ' +
+                'soluble fibre, lean protein, and staying hydrated.',
+          color: 'safe',
+        };
+      }
+
+      // Week 6+ — check symptom stability for maintenance phase
+      const bm7 = getDailyBMTotals(7);
+      const trackedDays = bm7.filter(d => d.bmCount !== null);
+      const avgBMs = trackedDays.length > 0
+        ? trackedDays.reduce((s, d) => s + d.bmCount, 0) / trackedDays.length
+        : null;
+
+      const summary7 = getSymptomSummary(7);
+      const noRecentUrgency = summary7.urgencyDays === 0;
+      const stableAvg = avgBMs !== null && avgBMs <= 1.5;
+      const hasEnoughData = trackedDays.length >= 5; // need at least 5 days logged
+
+      if (hasEnoughData && stableAvg && noRecentUrgency) {
+        return {
+          id: 'maintenance',
+          week: `Week ${week} · Maintenance`,
+          title: 'Maintenance phase — well done',
+          desc: 'Your symptoms have normalised. Keep logging to track patterns ' +
+                'and catch early signs of a flare. Caution foods can now be ' +
+                'trialed carefully, one at a time.',
+          color: 'safe',
+        };
+      }
+
+      return {
+        id: 'reintroduction',
+        week: `Week ${week} of recovery`,
+        title: 'Careful reintroduction phase',
+        desc: 'You can begin testing caution foods one at a time. Wait 3 days ' +
+              'between each new food and log your response. Safe foods remain ' +
+              'your baseline.',
+        color: 'safe',
+      };
+    }
+
+    const phase = getPhase();
+    document.getElementById('phase-week').textContent  = phase.week;
+    document.getElementById('phase-title').textContent = phase.title;
+    document.getElementById('phase-desc').textContent  = phase.desc;
+
+    // Style the banner differently in maintenance phase
+    if (phase.id === 'maintenance') {
+      const banner = document.getElementById('phase-banner');
+      banner.style.borderColor = 'var(--color-safe)';
+      banner.style.background  = 'var(--color-safe-bg)';
+    }
+
+    // ── Today's metrics ──────────────────────────────────────────────────────
+    const todayEntries  = getTodaysEntries();
+    const mealCount     = todayEntries.filter(e => e.type === 'meal').length;
+    const symptomToday  = todayEntries.filter(e => e.type === 'symptom');
+    const bmToday       = symptomToday.reduce((s, e) => s + (e.bmCount || 0), 0);
+    const hasUrgency    = symptomToday.some(e => e.urgency === true);
+
+    document.getElementById('meal-count').textContent = mealCount;
+    document.getElementById('bm-count').textContent   = symptomToday.length > 0
+      ? bmToday : '—';
+
+    if (hasUrgency) {
+      const sub = document.getElementById('bm-sub');
+      sub.textContent = 'urgency logged today';
+      sub.style.color = 'var(--color-caution)';
+    }
+
+    // Colour-code the BM count
+    const bmEl = document.getElementById('bm-count');
+    if (bmToday >= 4)      bmEl.style.color = 'var(--color-avoid)';
+    else if (bmToday >= 2) bmEl.style.color = 'var(--color-caution)';
+    else if (bmToday >= 0 && symptomToday.length > 0)
+                           bmEl.style.color = 'var(--color-safe)';
+
+    // ── Daily tips ───────────────────────────────────────────────────────────
+    //
+    // Rotates daily based on day-of-year so the same tip doesn't show
+    // two days in a row. All tips are sourced from the verified guidance
+    // in this conversation — nothing invented.
+    //
+    const TIPS = [
+      'Cook rice or potatoes, then cool them in the fridge before reheating. This increases resistant starch, which feeds beneficial gut bacteria.',
+      'Carrots must be peeled AND steamed until completely soft before eating. Raw or crunchy carrots will worsen symptoms.',
+      'Decaf coffee still contains chlorogenic acids that stimulate your colon. Switch to ginger or chamomile tea instead.',
+      'Aim for 5–6 small meals rather than 3 large ones. Large meals trigger the gastrocolic reflex, which worsens urgency.',
+      'Check every packaged food label for artificial sweeteners — they appear in "diet," "light," and "sugar-free" products and are toxic to gut bacteria.',
+      'Banana is the only raw fruit confirmed safe right now. All other fruit must be cooked, canned, or peeled and very ripe.',
+      'Oats must be rolled or instant — not steel-cut. Steel-cut oats retain more insoluble fibre that can worsen loose stools.',
+      'Olive oil is your only cooking fat right now — approximately 1 teaspoon per meal as a drizzle. No butter, no coconut oil.',
+      'Hydration matters even when you\'re not in a flare. Loose stools cause ongoing fluid and electrolyte loss. Coconut water or bone broth replaces electrolytes better than plain water.',
+      'The green tops of spring onions are lower FODMAP than the white bulb. If you want onion flavour, use a small amount of the green part only — cooked.',
+      'Salmon baked with lemon juice is one of the most anti-inflammatory meals available. Omega-3 fatty acids directly reduce colonic inflammation.',
+      'A food diary is the only reliable way to find your personal triggers. Write down what you eat and note any symptoms 1 hour and 4 hours later.',
+      'Peppermint tea reduces intestinal spasm — but if you have heartburn or reflux, use ginger or chamomile instead.',
+      'Spinach must be fully wilted before eating. Blending cooked spinach into soups is the easiest way to get the nutrients without the fibre impact.',
+      'When reintroducing a new food, add one at a time and wait 3 full days before adding the next. This is the only way to identify which foods are your personal triggers.',
+      'Gluten is worth trialing an elimination of — even without celiac, it can maintain background colonic inflammation. Try 4–6 weeks without it.',
+      'NSAIDs (ibuprofen, naproxen, aspirin) are one of the strongest triggers for lymphocytic colitis. Use acetaminophen (Tylenol) for pain instead.',
+      'Sweet potato should be peeled and boiled until soft — not baked with the skin on. The skin adds insoluble fibre that worsens loose stools.',
+      'Turmeric with a pinch of black pepper is anti-inflammatory and safe to add to cooked dishes. The black pepper dramatically increases curcumin absorption.',
+      'Bone broth is more than a warm drink — it provides collagen precursors that support gut lining repair. Sip it warm between meals.',
+      'Chicory and Pero coffee substitutes are high in inulin — a FODMAP fibre that pulls water into the colon. Avoid until full recovery.',
+      'The goal right now is soluble fibre, not insoluble fibre. Soluble fibre (oats, banana, cooked vegetables) forms a gel that slows transit. Insoluble fibre (raw veg, whole grains, nuts) speeds it up.',
+    ];
+
+    const dayOfYear = Math.floor(
+      (new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000
+    );
+    document.getElementById('tip-text').textContent =
+      TIPS[dayOfYear % TIPS.length];
+
+    // ── Recent entries ───────────────────────────────────────────────────────
+    const allEntries   = loadAllEntries().slice(0, 3); // newest first, max 3
+    const recentEl     = document.getElementById('recent-entries');
+
+    if (allEntries.length === 0) {
+      recentEl.innerHTML = `
+        <div class="empty-state">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="3" width="16" height="18" rx="2"/>
+            <line x1="8" y1="8" x2="16" y2="8"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+            <line x1="8" y1="16" x2="12" y2="16"/>
+          </svg>
+          <p class="empty-state__title">No entries yet</p>
+          <p class="empty-state__body">
+            Tap the + button to log your first meal or symptom check.
+          </p>
+          <a href="diary.html?action=add-meal" class="btn btn--primary">
+            Log your first meal
+          </a>
+        </div>`;
+    } else {
+      recentEl.innerHTML = allEntries.map(entry => {
+        const isMeal = entry.type === 'meal';
+        const label  = isMeal ? 'Meal' : 'Symptoms';
+        const labelClass = isMeal
+          ? 'entry-card__label--meal'
+          : 'entry-card__label--symptom';
+
+        let mainText = '';
+        let metaText = '';
+
+        if (isMeal) {
+          const foods = Array.isArray(entry.foods) ? entry.foods : [];
+          mainText = foods.length > 0 ? foods.join(', ') : 'Meal logged';
+          metaText = entry.portion ? `Portion: ${entry.portion}` : '';
+        } else {
+          const bms     = entry.bmCount ?? 0;
+          const urgency = entry.urgency ? ' · Urgency' : '';
+          const bloat   = typeof entry.bloating === 'number'
+            ? ` · Bloating ${entry.bloating}/5` : '';
+          mainText = `${bms} BM${bms !== 1 ? 's' : ''}${urgency}${bloat}`;
+          metaText = entry.symptomNotes || '';
+        }
+
+        const dateLabel = entry.date === todayString()
+          ? 'Today'
+          : formatDateShort(entry.date);
+
+        return `
+          <div class="entry-card">
+            <span class="entry-card__time">${dateLabel}<br>${entry.time}</span>
+            <div class="entry-card__content">
+              <p class="entry-card__label ${labelClass}">${label}</p>
+              <p class="entry-card__foods">${mainText}</p>
+              ${metaText ? `<p class="entry-card__meta">${metaText}</p>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ── FAB — navigate to diary with quick-add intent ────────────────────────
+    document.getElementById('fab').addEventListener('click', () => {
+      window.location.href = 'diary.html?action=add-meal';
+    });
+
+    // ── Service worker registration ──────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(err => {
+        console.warn('Service worker registration failed:', err);
+      });
+    }
+  </script>
+
+</body>
+</html>
